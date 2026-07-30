@@ -13,7 +13,20 @@ from datetime import datetime, date
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "data" / "ptsd.db"
-CORE_DIR = Path(__file__).parent / "core"
+CORE_DIR = Path(__file__).parent
+
+def run_python_script(script_path):
+    """Запускает Python-скрипт и возвращает его вывод"""
+    try:
+        result = subprocess.run(
+            [sys.executable, script_path],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        return result.stdout if result.returncode == 0 else f"Ошибка: {result.stderr}"
+    except Exception as e:
+        return f"Ошибка выполнения: {str(e)}"
 
 # Коды триггеров
 TRIGGER_CODES = {
