@@ -1,6 +1,6 @@
 """
 Импортёр данных из CSV старой системы в SQLite новой.
-Запуск: python ~/army_system_py/core/importer.py
+Запуск: python core/importer.py
 """
 import sqlite3
 import csv
@@ -8,8 +8,12 @@ import os
 from datetime import datetime
 
 # Пути
-OLD_LOGS = os.path.expanduser("~/army_system/logs")
-DB_PATH = os.path.expanduser("~/army_system_py/army.db")
+OLD_LOGS = os.path.expanduser("~/ptsd_monitor/logs")
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "ptsd.db")
+
+def import_data():
+    """Универсальная функция импорта"""
+    main()
 
 def create_tables(cursor):
     """Создаёт таблицы, если их нет"""
@@ -171,7 +175,7 @@ def build_daily_summary(conn):
     return count
 
 def main():
-    print("🛡️ Импорт данных army_system → SQLite")
+    print("🧠 Импорт данных PTSD Monitor → SQLite")
     print("=" * 40)
 
     conn = sqlite3.connect(DB_PATH)

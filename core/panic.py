@@ -1,14 +1,13 @@
 """
 PANIC — антипанический протокол на Python.
-Запуск: python ~/army_system_py/core/panic.py
+Запуск: python core/panic.py
 """
 import time
 import sqlite3
 import os
 from datetime import datetime
 
-DB_PATH = os.path.expanduser("~/army_system_py/army.db")
-PLUGINS_DIR = os.path.expanduser("~/army_system_py/plugins")
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "ptsd.db")
 
 def save_state(state, comment):
     conn = sqlite3.connect(DB_PATH)
