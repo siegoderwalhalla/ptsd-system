@@ -4,39 +4,37 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.py~
-*.py.class
-*.py.backup
-*.swp
-*.swo
 
-# Databases
+# Database
 *.db
-*.db-journal
 
-# Exports
-exports/
-
-# Logs
+# Logs and temp files
 *.log
+*.tmp
 
 # Environment
 .env
 .env.local
 *.env.*
 
-# Coverage
-.coverage
-coverage/
-htmlcov/
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Temporary files
-*.tmp
-*.temp
-*.bak
-*.backup
+# Dependencies
+.venv/
+venv/
+node_modules/
 
-# OS generated files
-.DS_Store
-Thumbs.db
+# Build artifacts
+dist/
+build/
+target/
+*.o
+*.obj
+*.so
+*.dll
+*.exe
 ```
