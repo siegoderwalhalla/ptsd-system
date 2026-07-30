@@ -1,12 +1,16 @@
 """
-Анализатор паттернов: находит закономерности в данных.
-Запуск: python ~/army_system_py/core/analyzer.py
+Анализатор паттернов: находит закономерности в данных PTSD.
+Запуск: python core/analyzer.py
 """
 import sqlite3
 import os
 from collections import Counter
 
-DB_PATH = os.path.expanduser("~/army_system_py/army.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "ptsd.db")
+
+def analyze_patterns():
+    """Алиас для analyze()"""
+    analyze()
 
 def analyze():
     conn = sqlite3.connect(DB_PATH)

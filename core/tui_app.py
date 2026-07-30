@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
 """
-ARMY SYSTEM — финальное приложение на Textual.
-Запуск: python ~/army_system_py/core/textual_app.py
+PTSD Monitor — TUI приложение на Textual.
+Запуск: python tui.py
 Выход: Ctrl+Q или кнопка «Выход»
 """
 from textual.app import App, ComposeResult
@@ -9,20 +10,35 @@ from textual.containers import Container, Horizontal, Vertical, ScrollableContai
 from textual.screen import Screen
 import sqlite3, os, subprocess, io, sys
 from datetime import datetime, date
+from pathlib import Path
 
-DB_PATH = os.path.expanduser("~/army_system_py/army.db")
-ARMY_PY = os.path.expanduser("~/army_system_py/army.py")
-CORE_DIR = os.path.expanduser("~/army_system_py/core")
+DB_PATH = Path(__file__).parent / "data" / "ptsd.db"
+CORE_DIR = Path(__file__).parent / "core"
 
-def run_python_script(path):
-    """Запускает Python-скрипт и возвращает его вывод"""
-    old_stdout, sys.stdout = sys.stdout, io.StringIO()
-    try:
-        exec(open(path).read())
-    except: pass
-    result = sys.stdout.getvalue()
-    sys.stdout = old_stdout
-    return result
+# Коды триггеров
+TRIGGER_CODES = {
+    "TRIGGER_ABUSE": "Абьюзивное взаимодействие",
+    "TRIGGER_CONFLICT": "Конфликт",
+    "TRIGGER_LONELY": "Одиночество",
+    "TRIGGER_INTRUSIVE": "Навязчивые воспоминания",
+    "TRIGGER_DEATH": "Смерть, утрата",
+    "TRIGGER_GUILT": "Вина, стыд",
+    "TRIGGER_IMPULSE": "Импульсы",
+    "TRIGGER_GENERAL": "Общий триггер",
+    "THOUGHT": "Мысли о себе",
+    "SLEEP": "Проблемы со сном",
+    "DREAM": "Триггерные сны",
+    "_": "Нет триггера"
+}
+
+LEVELS = {
+    10: "α⁺⁺ (отлично)", 9: "α⁺ (хорошо)", 8: "α (норма+)",
+    7: "β⁻ (норма-)", 6: "β (средне)", 5: "β⁺ (ниже среднего)",
+    4: "γ⁻ (тяжело)", 3: "γ (очень тяжело)", 2: "γ⁺ (кризис)", 1: "γ⁺⁺ (критическое)"
+}
+
+def get_level(state):
+    return LEVELS.get(state, f"уровень {state}")
 
 # ═══════════════════ ЭКРАН 1: ДАШБОРД ═══════════════════
 class DashboardScreen(Screen):
@@ -60,23 +76,22 @@ class DashboardScreen(Screen):
         row = c.fetchone()
         if row:
             state, delta, ts = row
-            levels = {8: "α (альфа)", 7: "α⁺", 6: "β⁻", 5: "β (бета)", 4: "β⁺", 3: "γ⁻ (тяж)", 2: "γ (тяж)", 1: "γ⁺ (пиздец)"}
-            level = levels.get(state, str(state))
+            level = get_level(state)
             delta_str = "  Δ АКТИВНА" if delta == 'delta' else ""
-            ddays = (date(2026, 7, 2) - date.today()).days
             state_text = f"[bold]СОСТОЯНИЕ: {state}/10 — {level}{delta_str}[/bold]\n"
-            state_text += f"Замер: {ts}\n"
-            state_text += f"До ДМБ: {ddays} дней"
+            state_text += f"Замер: {ts}"
         else:
             state_text = "Нет данных"
         c.execute("SELECT COUNT(*), ROUND(AVG(state), 2) FROM states")
         total, avg = c.fetchone()
-        c.execute("SELECT COUNT(*) FROM triggers_log WHERE code = 'ТОШ' AND timestamp > datetime('now', '-1 day')")
-        tosh24 = c.fetchone()[0]
+        c.execute("""SELECT COUNT(*) FROM triggers_log 
+                     WHERE timestamp > datetime('now', '-1 day') AND code != '_'""")
+        triggers24 = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM states WHERE delta = 'delta' AND DATE(timestamp) = DATE('now')")
         delta_today = c.fetchone()[0]
-        stats_text = f"[bold]СТАТИСТИКА[/bold]\nЗамеров: {total} | Среднее: {avg}\nТОШ за 24ч: {tosh24} | Δ сегодня: {'ДА' if delta_today > 0 else 'нет'}"
-        c.execute("SELECT DATE(timestamp) as d, ROUND(AVG(state), 2) FROM states GROUP BY d ORDER BY d DESC LIMIT 7")
+        stats_text = f"[bold]СТАТИСТИКА[/bold]\nЗамеров: {total} | Среднее: {avg}\nТриггеры за 24ч: {triggers24} | Δ сегодня: {'ДА' if delta_today > 0 else 'нет'}"
+        c.execute("""SELECT DATE(timestamp) as d, ROUND(AVG(state), 2) 
+                     FROM states GROUP BY d ORDER BY d DESC LIMIT 7""")
         hist = list(reversed(c.fetchall()))
         graph_text = "[bold]ГРАФИК (7 дней)[/bold]\n"
         if hist:
@@ -115,7 +130,7 @@ class StateScreen(Screen):
             yield Static("[bold]📊 ЗАПИСЬ СОСТОЯНИЯ[/bold]\n")
             yield Label("Состояние (0-10):"); yield Input(placeholder="5", id="input_state")
             yield Label("Дельта? (y/n):"); yield Input(placeholder="n", id="input_delta")
-            yield Label("Код триггера:"); yield Input(placeholder="ТОШ / _ ", id="input_code")
+            yield Label("Код триггера:"); yield Input(placeholder="TRIGGER_ABUSE / _", id="input_code")
             yield Label("Комментарий:"); yield Input(placeholder="как ты?", id="input_comment")
             yield Button("✅ Сохранить", id="btn_save", variant="primary")
             yield Button("🔙 Назад", id="btn_back")
@@ -127,7 +142,7 @@ class StateScreen(Screen):
             delta = "delta" if self.query_one("#input_delta", Input).value.lower() == "y" else ""
             code = self.query_one("#input_code", Input).value or "_"
             comment = self.query_one("#input_comment", Input).value or ""
-            subprocess.call(["python", ARMY_PY, "state", state] + ([delta] if delta else []) + [code, comment])
+            subprocess.call(["python", str(Path(__file__).parent.parent / "cli.py"), "state", state] + ([delta] if delta else []) + [code, comment])
             self.dismiss()
 
 # ═══════════════════ ЭКРАНЫ 3-4: RECOVERY, PANIC ═══════════════════
@@ -146,7 +161,7 @@ class RecoveryScreen(Screen):
         elif event.button.id == "btn_rec_save":
             state = self.query_one("#rec_state", Input).value or "6"
             comment = self.query_one("#rec_comment", Input).value or ""
-            subprocess.call(["python", ARMY_PY, "state", state, "RECOVERY", comment])
+            subprocess.call(["python", str(Path(__file__).parent.parent / "cli.py"), "recovery", state, state, "дыхание", comment])
             self.dismiss()
 
 class PanicScreen(Screen):
@@ -164,7 +179,7 @@ class PanicScreen(Screen):
         elif event.button.id == "btn_panic_save":
             state = self.query_one("#panic_state", Input).value or "3"
             comment = self.query_one("#panic_comment", Input).value or ""
-            subprocess.call(["python", ARMY_PY, "state", state, "PANIC", comment])
+            subprocess.call(["python", str(Path(__file__).parent.parent / "cli.py"), "panic", state, state, "5-4-3-2-1", comment])
             self.dismiss()
 
 # ═══════════════════ ЭКРАН 5: GATE ═══════════════════
@@ -172,7 +187,7 @@ class GateScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with Container(classes="panel"):
-            yield Static("[bold]🚪 TOSHA GATE[/bold]\n")
+            yield Static("[bold]🚪 PTSD GATE[/bold]\n")
             yield Static(id="gate_result"); yield Static("\n")
             yield Button("🔄 Обновить", id="btn_gate_refresh")
             yield Button("🔙 Назад", id="btn_gate_back")
@@ -184,17 +199,18 @@ class GateScreen(Screen):
         row = c.fetchone(); text = ""
         if row:
             state, delta = row
-            c.execute("SELECT COUNT(*) FROM triggers_log WHERE code='ТОШ' AND timestamp > datetime('now','-1 day')")
-            tosh24 = c.fetchone()[0]
+            c.execute("""SELECT COUNT(*) FROM triggers_log 
+                         WHERE timestamp > datetime('now','-1 day') AND code != '_'""")
+            triggers24 = c.fetchone()[0]
             block, reason = 0, ""
             if state <= 2: block, reason = 1, "КРИТИЧЕСКОЕ СОСТОЯНИЕ"
             elif state <= 3: block, reason = 1, "ТЯЖЁЛОЕ СОСТОЯНИЕ"
             elif delta == 'delta' and state <= 5: block, reason = 1, "ДЕЛЬТА АКТИВНА"
-            elif tosh24 >= 3: block, reason = 1, "МНОГО ТРИГГЕРОВ ТОШ"
+            elif triggers24 >= 3: block, reason = 1, "МНОГО ТРИГГЕРОВ"
             elif state <= 4: block, reason = 2, "ПОНИЖЕННОЕ СОСТОЯНИЕ"
             elif state <= 5: block, reason = 2, "СРЕДНЕЕ СОСТОЯНИЕ"
-            if block == 1: text = f"⛔ ДОСТУП ЗАБЛОКИРОВАН ({reason})\n\nНе пиши Тошке. Сделай recovery."
-            elif block == 2: text = f"⚠️  ОГРАНИЧЕННЫЙ ДОСТУП ({reason})\n\nМожно коротко, без претензий."
+            if block == 1: text = f"⛔ ДОСТУП ЗАБЛОКИРОВАН ({reason})\n\nРекомендуется recovery и отдых."
+            elif block == 2: text = f"⚠️  ОГРАНИЧЕННЫЙ ДОСТУП ({reason})\n\nИзбегайте стрессовых ситуаций."
             else: text = "✅ ДОСТУП РАЗРЕШЁН"
         else: text = "Нет данных"
         conn.close()
@@ -239,8 +255,7 @@ class PredictScreen(Screen):
         from datetime import datetime, timedelta
         from collections import defaultdict
         
-        DB = os.path.expanduser("~/army_system_py/army.db")
-        conn = sqlite3.connect(DB)
+        conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
         out = []
@@ -321,16 +336,15 @@ class PredictScreen(Screen):
             reasons.append("дельта (-1.5)")
         
         if last_trigger:
-            if last_trigger[0] == 'ТОШ':
+            if last_trigger[0] in ('TRIGGER_ABUSE', 'TRIGGER_CONFLICT'):
                 score -= 1.0
-                reasons.append("триггер ТОШ (-1.0)")
-            elif last_trigger[0] in ('СМЕРТЬ', 'ИМП'):
+                reasons.append(f"триггер {last_trigger[0]} (-1.0)")
+            elif last_trigger[0] in ('TRIGGER_DEATH', 'TRIGGER_IMPULSE', 'TRIGGER_INTRUSIVE'):
                 score -= 1.5
                 reasons.append(f"тяжёлый триггер {last_trigger[0]} (-1.5)")
         
         score = round(max(1.0, min(10.0, score)), 1)
-        levels = {8: "α", 7: "α⁺", 6: "β⁻", 5: "β", 4: "β⁺", 3: "γ⁻", 2: "γ", 1: "γ⁺"}
-        level = levels.get(round(score), str(score))
+        level = get_level(round(score))
         emoji = "🟢" if score >= 7 else ("🟡" if score >= 4 else "🔴")
         
         out.append(f"   Прогноз: {score}/10 — {level} {emoji}")
@@ -383,7 +397,7 @@ class ReportScreen(Screen):
             self.query_one("#report_result", Static).update(result)
 
 # ═══════════════════ ГЛАВНОЕ ПРИЛОЖЕНИЕ ═══════════════════
-class ArmyApp(App):
+class PTSDApp(App):
     CSS = """
     Screen { background: #1a1a2e; }
     Header { background: #16213e; color: #e94560; }
@@ -399,4 +413,4 @@ class ArmyApp(App):
         self.push_screen("dashboard")
 
 if __name__ == "__main__":
-    ArmyApp().run()
+    PTSDApp().run()

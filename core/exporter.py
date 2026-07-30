@@ -1,6 +1,6 @@
 """
 Экспортёр: выгружает данные из SQLite в CSV/JSON/Markdown.
-Запуск: python ~/army_system_py/core/exporter.py [csv|json|md]
+Запуск: python core/exporter.py [csv|json|md]
 """
 import sqlite3
 import csv
@@ -8,9 +8,18 @@ import json
 import os
 import sys
 
-DB_PATH = os.path.expanduser("~/army_system_py/army.db")
-EXPORT_DIR = os.path.expanduser("~/army_system_py/exports")
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "ptsd.db")
+EXPORT_DIR = os.path.join(os.path.dirname(__file__), "..", "exports")
 os.makedirs(EXPORT_DIR, exist_ok=True)
+
+def export_data(format="md"):
+    """Универсальная функция экспорта"""
+    if format == "csv":
+        export_csv()
+    elif format == "json":
+        export_json()
+    else:
+        export_markdown()
 
 def export_csv():
     conn = sqlite3.connect(DB_PATH)
@@ -40,14 +49,26 @@ def export_json():
 def export_markdown():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    path = os.path.join(EXPORT_DIR, "army_report.md")
+    path = os.path.join(EXPORT_DIR, "ptsd_report.md")
 
     c.execute("SELECT COUNT(*), ROUND(AVG(state), 2), MIN(state), MAX(state) FROM states")
     total, avg, min_s, max_s = c.fetchone()
 
+    # Получаем данные по дням напрямую из states
     c.execute("""
-        SELECT date, avg_state, min_state, max_state, trigger_count, dominant_trigger
-        FROM daily_summary ORDER BY date DESC LIMIT 14
+        SELECT date(timestamp) as date,
+               ROUND(AVG(state), 2) as avg_state,
+               MIN(state) as min_state,
+               MAX(state) as max_state,
+               (SELECT COUNT(*) FROM triggers_log t 
+                WHERE date(t.timestamp) = date(states.timestamp)) as trigger_count,
+               (SELECT code FROM triggers_log t 
+                WHERE date(t.timestamp) = date(states.timestamp) 
+                GROUP BY code ORDER BY COUNT(*) DESC LIMIT 1) as dominant_trigger
+        FROM states
+        WHERE timestamp IS NOT NULL
+        GROUP BY date(timestamp)
+        ORDER BY date DESC LIMIT 14
     """)
     daily = c.fetchall()
 
@@ -59,7 +80,7 @@ def export_markdown():
     triggers = c.fetchall()
 
     with open(path, 'w') as f:
-        f.write("# 🛡️ ARMY SYSTEM — Отчёт\n\n")
+        f.write("# 🧠 PTSD Monitor — Отчёт\n\n")
         f.write(f"*Сгенерировано автоматически*\n\n")
         f.write(f"## 📊 Общая статистика\n\n")
         f.write(f"- Замеров: **{total}**\n")
@@ -70,7 +91,8 @@ def export_markdown():
         f.write("| Дата | Среднее | Мин | Макс | Триггеров | Доминантный |\n")
         f.write("|------|---------|-----|------|-----------|-------------|\n")
         for d in daily:
-            f.write(f"| {d[0]} | {d[1]} | {d[2]} | {d[3]} | {d[4]} | {d[5]} |\n")
+            dom = d[5] if d[5] else "-"
+            f.write(f"| {d[0]} | {d[1]} | {d[2]} | {d[3]} | {d[4]} | {dom} |\n")
 
         f.write("\n## 🎯 Триггеры\n\n")
         f.write("| Код | Количество | Среднее состояние |\n")
@@ -78,7 +100,7 @@ def export_markdown():
         for t in triggers:
             f.write(f"| {t[0]} | {t[1]} | {t[2]} |\n")
 
-        f.write(f"\n---\n*Создано в Termux, на POCO C51, в армии.*\n")
+        f.write(f"\n---\n*PTSD Monitor — система самопомощи при ПТСР.*\n")
 
     conn.close()
     print(f"✅ Markdown: {path}")
