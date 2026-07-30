@@ -1,16 +1,17 @@
 """
 Предиктор состояний на чистом Python (без ML-библиотек).
 Учится на истории и предсказывает состояние на завтра.
-Запуск: python ~/army_system_py/core/predictor.py
+Запуск: python core/predictor.py
 """
 import sqlite3
 import os
 from datetime import datetime, timedelta
 from collections import defaultdict
+from pathlib import Path
 
-DB_PATH = os.path.expanduser("~/army_system_py/army.db")
+DB_PATH = Path(__file__).parent.parent / "data" / "ptsd.db"
 
-def predict():
+def predict_state():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
@@ -136,17 +137,17 @@ def predict():
 
     # Вклад последнего триггера
     if last_trigger:
-        if last_trigger[0] == 'ТОШ':
+        if last_trigger[0] in ('TRIGGER_ABUSE', 'TRIGGER_CONFLICT'):
             score -= 1.0
-            reasons.append("последний триггер ТОШ (-1.0)")
-        elif last_trigger[0] in ('СМЕРТЬ', 'ИМП'):
+            reasons.append(f"триггер {last_trigger[0]} (-1.0)")
+        elif last_trigger[0] in ('TRIGGER_DEATH', 'TRIGGER_IMPULSE', 'TRIGGER_INTRUSIVE'):
             score -= 1.5
             reasons.append(f"тяжёлый триггер {last_trigger[0]} (-1.5)")
 
     score = max(1.0, min(10.0, score))
     score = round(score, 1)
 
-    levels = {8: "α", 7: "α⁺", 6: "β⁻", 5: "β", 4: "β⁺", 3: "γ⁻", 2: "γ", 1: "γ⁺"}
+    levels = {10: "α⁺⁺", 9: "α⁺", 8: "α", 7: "β⁻", 6: "β", 5: "β⁺", 4: "γ⁻", 3: "γ", 2: "γ⁺", 1: "γ⁺⁺"}
     level = levels.get(round(score), str(score))
     emoji = "🟢" if score >= 7 else ("🟡" if score >= 4 else "🔴")
 
@@ -158,7 +159,7 @@ def predict():
         print()
         print("   ⚠️  РЕКОМЕНДАЦИЯ: Высокий риск спада.")
         print("   → запланируй recovery заранее")
-        print("   → избегай контакта с ТОШ")
+        print("   → избегай стрессовых ситуаций")
         print("   → предупреди близких")
     elif score <= 5:
         print()
@@ -173,4 +174,4 @@ def predict():
     conn.close()
 
 if __name__ == "__main__":
-    predict()
+    predict_state()

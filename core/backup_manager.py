@@ -1,16 +1,16 @@
 """
 Бэкап-менеджер: создаёт и управляет резервными копиями базы данных.
-Запуск: python ~/army_system_py/core/backup_manager.py
-        python ~/army_system_py/core/backup_manager.py list
-        python ~/army_system_py/core/backup_manager.py clean 5
+Запуск: python core/backup_manager.py
+        python core/backup_manager.py list
+        python core/backup_manager.py clean 5
 """
 import sqlite3
 import os
 import shutil
 from datetime import datetime
 
-DB_PATH = os.path.expanduser("~/army_system_py/army.db")
-BACKUP_DIR = os.path.expanduser("~/army_system_py/backups")
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "ptsd.db")
+BACKUP_DIR = os.path.join(os.path.dirname(__file__), "..", "backups")
 
 def create_backup():
     if not os.path.exists(DB_PATH):
@@ -19,7 +19,7 @@ def create_backup():
 
     os.makedirs(BACKUP_DIR, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_name = f"army_backup_{timestamp}.db"
+    backup_name = f"ptsd_backup_{timestamp}.db"
     backup_path = os.path.join(BACKUP_DIR, backup_name)
 
     shutil.copy2(DB_PATH, backup_path)

@@ -1,12 +1,12 @@
 """
 Детектор аномалий: находит дни, которые сильно выбиваются из тренда.
-Запуск: python ~/army_system_py/core/anomaly_detector.py
+Запуск: python core/anomaly_detector.py
 """
 import sqlite3
 import os
 from datetime import datetime, timedelta
 
-DB_PATH = os.path.expanduser("~/army_system_py/army.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "ptsd.db")
 
 def detect():
     conn = sqlite3.connect(DB_PATH)

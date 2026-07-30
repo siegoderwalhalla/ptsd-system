@@ -1,11 +1,11 @@
 """
 Коррелятор: ищет связи между параметрами.
-Запуск: python ~/army_system_py/core/correlator.py
+Запуск: python core/correlator.py
 """
 import sqlite3
 import os
 
-DB_PATH = os.path.expanduser("~/army_system_py/army.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "ptsd.db")
 
 def correlate():
     conn = sqlite3.connect(DB_PATH)
